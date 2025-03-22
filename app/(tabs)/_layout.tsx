@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { FontAwesome } from "@expo/vector-icons";
+import { Home } from "lucide-react-native";
 import { View } from "react-native";
 
 export default function TabsNavigator() {
@@ -8,7 +8,7 @@ export default function TabsNavigator() {
       screenOptions={{
         tabBarShowLabel: false,
         tabBarStyle: {
-          backgroundColor: "#F5F5F5",
+          backgroundColor: "transparent",
           height: "12%",
           borderTopLeftRadius: 25,
           borderTopRightRadius: 25,
@@ -28,11 +28,7 @@ export default function TabsNavigator() {
             <View
               className={`p-1 rounded-2xl ${focused ? "bg-yellow-400" : ""}`}
             >
-              <FontAwesome
-                name="home"
-                size={24}
-                color={focused ? "#fff" : "#333"}
-              />
+              <Home size={30} color={focused ? "#fff" : "#333"} />
             </View>
           ),
         }}

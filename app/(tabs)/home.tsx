@@ -1,74 +1,217 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, Animated } from "react-native";
-import { FontAwesome } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import NavigationDrawer from "../../components/Drawer";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Animated,
+  LayoutAnimation,
+  Alert,
+} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Audio } from "expo-av";
+import { Mic } from "lucide-react-native";
+import OpenAI from "openai";
+import { cn } from "@/lib";
+
+const openai = new OpenAI({
+  apiKey:
+    "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",
+});
 
 export default function HomeScreen() {
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [hasPermission, setHasPermission] = useState(false);
   const [transcribedText, setTranscribedText] = useState("");
-  const router = useRouter();
+  const [recording, setRecording] = useState<Audio.Recording>();
 
-  const toggleDrawer = () => {
-    setDrawerOpen(!drawerOpen);
+  const micButtonAnim = useRef(new Animated.Value(0)).current;
+  const backgroundAnim = useRef(new Animated.Value(0)).current;
+  const rotationAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    checkPermissions();
+  }, []);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.loop(
+        Animated.timing(rotationAnim, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+      ),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.2,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ]),
+      ),
+    ]).start();
+  }, []);
+
+  const checkPermissions = async () => {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      setHasPermission(status === "granted");
+      if (status !== "granted") {
+        Alert.alert("Permission to access microphone was denied");
+      }
+    } catch (error) {
+      console.error("Error requesting permissions:", error);
+    }
   };
 
-  const startRecording = () => {
-    setIsRecording(true);
-    // Add your actual recording logic here
+  const startRecording = async () => {
+    if (!hasPermission) {
+      await checkPermissions();
+      if (!hasPermission) return;
+    }
+
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const newRecording = new Audio.Recording();
+      await newRecording.prepareToRecordAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+      );
+      await newRecording.startAsync();
+      setRecording(newRecording);
+
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      Animated.parallel([
+        Animated.timing(micButtonAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backgroundAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: false,
+        }),
+      ]).start();
+
+      setIsRecording(true);
+    } catch (error) {
+      console.error("Failed to start recording:", error);
+      Alert.alert("Error", "Failed to start recording");
+    }
   };
 
-  const stopRecording = () => {
-    setIsRecording(false);
+  const stopRecording = async () => {
+    if (!recording) return;
+
+    try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      setIsRecording(false);
+
+      Animated.parallel([
+        Animated.timing(micButtonAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backgroundAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: false,
+        }),
+      ]).start();
+
+      if (uri) {
+        await transcribeAudio(uri);
+      }
+    } catch (error) {
+      console.error("Failed to stop recording:", error);
+      Alert.alert("Error", "Failed to stop recording");
+    }
   };
 
-  if (isRecording) {
-    return (
-      <View className="flex-1 bg-white">
-        <View className="flex-1 px-6 py-16">
-          <Text className="text-3xl leading-relaxed">
-            {transcribedText || "Listening..."}
-          </Text>
-        </View>
+  const transcribeAudio = async (uri: string) => {
+    try {
+      setTranscribedText("Transcribing...");
 
-        <View className="absolute bottom-10 w-full items-center">
-          <TouchableOpacity
-            onPress={stopRecording}
-            className="w-16 h-16 bg-red-500 rounded-full justify-center items-center"
-          >
-            <FontAwesome name="stop" size={24} color="white" />
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      const audioFile = new File([blob], "audio.mp3", { type: "audio/mp3" });
+
+      const transcription = await openai.audio.transcriptions.create({
+        file: audioFile,
+        model: "whisper-1",
+      });
+
+      setTranscribedText(transcription.text);
+    } catch (error) {
+      console.error("Transcription error:", error);
+      setTranscribedText("Transcription failed");
+      Alert.alert("Error", "Failed to transcribe audio");
+    }
+  };
 
   return (
     <View className="flex-1">
       <LinearGradient
-        colors={["#FFFFFF", "#FFA500"]}
+        colors={isRecording ? ["#F9D8A2", "#F9D8A2"] : ["#FFFFFF", "#F6BD60"]}
         style={{ flex: 1 }}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
       >
-        <NavigationDrawer onClose={toggleDrawer} isOpen={drawerOpen} />
+        <View className="flex-1 items-center px-6">
+          <View className="flex-1" />
 
-        <View className="flex-1 justify-center items-center px-6">
-          <View className="w-full bg-white/80 rounded-xl p-4 mb-8 min-h-[150px] max-h-[200px]">
-            <Text className="text-gray-800 text-lg">
-              {transcribedText || "Your speech will appear here..."}
-            </Text>
+          {isRecording && (
+            <View className="w-full mb-8">
+              <Text className="text-white text-lg">
+                {transcribedText || "Listening..."}
+              </Text>
+            </View>
+          )}
+
+          <View className="items-center mb-40">
+            <Animated.View
+              style={{
+                transform: [
+                  {
+                    rotate: rotationAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["0deg", "360deg"],
+                    }),
+                  },
+                  { scale: pulseAnim },
+                ],
+              }}
+              className="w-[140px] h-[140px] rounded-full border border-[rgba(128,128,128,0.2)]"
+            />
+
+            <View className="w-[140px] h-[140px] items-center justify-center -mt-[140px]">
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={isRecording ? stopRecording : startRecording}
+                className={`items-center justify-center duration-150 w-[96px] h-[96px] rounded-full shadow-sm ${isRecording ? "bg-[#fff]" : "bg-[#F29F18]"}`}
+              >
+                {isRecording ? (
+                  <View className="w-8 h-8 bg-red-500 rounded-lg" />
+                ) : (
+                  <Mic size={40} color="#FFFFFF" />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-
-          <TouchableOpacity
-            className="w-24 h-24 bg-white rounded-full justify-center items-center shadow-lg"
-            activeOpacity={0.7}
-            onPress={startRecording}
-          >
-            <FontAwesome name="microphone" size={40} color="#FFA500" />
-          </TouchableOpacity>
         </View>
       </LinearGradient>
     </View>
