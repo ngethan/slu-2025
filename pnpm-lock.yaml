@@ -76,6 +76,9 @@ importers:
       expo-apple-authentication:
         specifier: 7.1.3
         version: 7.1.3(expo@52.0.37(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@expo/metro-runtime@4.0.1(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1)))(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1))(react@18.3.1))(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1))
+      expo-audio:
+        specifier: ~0.3.5
+        version: 0.3.5(expo@52.0.37(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@expo/metro-runtime@4.0.1(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1)))(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1))(react@18.3.1))(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1))(react@18.3.1)
       expo-dev-client:
         specifier: ~5.0.12
         version: 5.0.12(expo@52.0.37(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@expo/metro-runtime@4.0.1(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1)))(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1))(react@18.3.1))
@@ -5476,6 +5479,16 @@ packages:
     resolution:
       {
         integrity: sha512-CdIywU0HrR3wsW5c3n0cT3jW9hccZdnqGsRqY+EY/RWzJbDXtDfAQVEiFHO3mDK7oveUwrP2jK/6ZRNek41/sg==,
+      }
+    peerDependencies:
+      expo: "*"
+      react: "*"
+      react-native: "*"
+
+  expo-audio@0.3.5:
+    resolution:
+      {
+        integrity: sha512-gzpDH3vZI1FDL1Q8pXryACtNIW+idZ/zIZ8WqdTRzJuzxucazrG2gLXUS2ngcXQBn09Jyz4RUnU10Tu2N7/Hgg==,
       }
     peerDependencies:
       expo: "*"
@@ -15637,6 +15650,12 @@ snapshots:
       react-native: 0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1)
     transitivePeerDependencies:
       - supports-color
+
+  expo-audio@0.3.5(expo@52.0.37(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@expo/metro-runtime@4.0.1(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1)))(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1))(react@18.3.1))(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1))(react@18.3.1):
+    dependencies:
+      expo: 52.0.37(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@expo/metro-runtime@4.0.1(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1)))(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1))(react@18.3.1)
+      react: 18.3.1
+      react-native: 0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1)
 
   expo-constants@17.0.5(expo@52.0.37(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@expo/metro-runtime@4.0.1(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1)))(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1))(react@18.3.1))(react-native@0.76.7(@babel/core@7.26.8)(@babel/preset-env@7.26.8(@babel/core@7.26.8))(@types/react@18.3.18)(react@18.3.1)):
     dependencies:

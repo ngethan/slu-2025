@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { View, Animated, Text, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { Link, router } from "expo-router";
 import * as AppleAuthentication from "expo-apple-authentication";
 
 export default function WelcomeScreen() {
@@ -95,20 +95,23 @@ export default function WelcomeScreen() {
 
         <View className="absolute bottom-12 w-full px-6">
           {Platform.OS === "ios" ? (
-            <AppleAuthentication.AppleAuthenticationButton
-              buttonType={
-                AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
-              }
-              buttonStyle={
-                AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
-              }
-              cornerRadius={25}
-              style={{
-                width: "100%",
-                height: 56,
-              }}
-              onPress={handleAppleSignIn}
-            />
+            <>
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={
+                  AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+                }
+                buttonStyle={
+                  AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                }
+                cornerRadius={25}
+                style={{
+                  width: "100%",
+                  height: 56,
+                }}
+                onPress={handleAppleSignIn}
+              />
+              <Link href="/(tabs)/home">just bring me to home</Link>
+            </>
           ) : (
             <Text className="text-center text-gray-500">
               Apple Sign In is only available on iOS devices
