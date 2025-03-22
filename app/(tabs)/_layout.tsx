@@ -37,7 +37,7 @@ export default function TabsNavigator() {
           ),
         }}
       />
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="chat"
         options={{
           headerShown: false,
@@ -53,7 +53,7 @@ export default function TabsNavigator() {
             </View>
           ),
         }}
-      />
+      /> */}
     </Tabs>
   );
 }

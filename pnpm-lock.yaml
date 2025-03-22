@@ -20,7 +20,7 @@ importers:
         specifier: ^19.5.0
         version: 19.5.0
       "@expo/vector-icons":
-        specifier: ^14.0.2
+        specifier: ^14.0.4
         version: 14.0.4
       "@mapbox/polyline":
         specifier: ^1.2.1

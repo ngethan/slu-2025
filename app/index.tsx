@@ -1,29 +1,14 @@
 import React, { useEffect, useRef } from "react";
-import { View, Animated, TouchableOpacity, Text } from "react-native";
-import { Link } from "expo-router";
+import { View, Animated, Text, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import * as AppleAuthentication from "expo-apple-authentication";
 
 export default function WelcomeScreen() {
-  // Animations
-  const floatAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: 1,
-          duration: 2500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 2500,
-          useNativeDriver: true,
-        }),
-      ]),
-    ).start();
-
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 2000,
@@ -31,55 +16,106 @@ export default function WelcomeScreen() {
     }).start();
   }, []);
 
-  const floatingY = floatAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [10, -10], // Smooth floating motion
-  });
+  const handleAppleSignIn = async () => {
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      console.log("Apple sign-in successful:", credential);
+      router.replace("/(tabs)/home");
+    } catch (e: any) {
+      if (e.code === "ERR_REQUEST_CANCELED") {
+        console.log("User canceled Apple sign-in");
+      } else {
+        console.error("Apple sign-in error:", e);
+      }
+    }
+  };
 
   return (
-    <Link href="/tutorial" asChild>
-      <TouchableOpacity className="flex-1" activeOpacity={0.8}>
-        {/* Full-Screen Gradient Background */}
-        <LinearGradient
-          colors={["#FFB95E", "#ED8F03"]}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-          }}
-        />
+    <View className="flex-1 bg-white">
+      <LinearGradient
+        colors={["#FFF9F0", "#FFE4BC"]}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+        }}
+      />
 
-        {/* Centered Content */}
-        <View className="flex-1 justify-center items-center px-6">
-          {/* Animated Title & Slogan */}
-          <View className="items-center">
-            <Animated.Text
-              style={{ opacity: fadeAnim }}
-              className="text-white text-7xl font-extrabold tracking-wide"
-            >
-              Oddyseez
-            </Animated.Text>
-            <Animated.Text
-              style={{ opacity: fadeAnim }}
-              className="text-white text-xl font-semibold mt-3 text-center"
-            >
-              Where Every Trip Starts Together
-            </Animated.Text>
-          </View>
-
-          {/* Floating Call-to-Action */}
-          <Animated.Text
+      <View className="flex-1 justify-center items-center px-6">
+        <View className="items-center">
+          <Animated.View
             style={{
               opacity: fadeAnim,
-              transform: [{ translateY: floatingY }],
             }}
-            className="absolute bottom-40 text-white text-lg font-medium opacity-90 animate-pulse"
           >
-            Tap anywhere to continue
+            <Ionicons name="mic-circle" size={80} color="#FF9500" />
+          </Animated.View>
+
+          <Animated.Text
+            style={{ opacity: fadeAnim }}
+            className="text-[#1C1C1E] text-5xl font-bold mt-4"
+          >
+            murmur.ai
+          </Animated.Text>
+          <Animated.Text
+            style={{ opacity: fadeAnim }}
+            className="text-[#666666] text-lg font-medium mt-3 text-center"
+          >
+            Speak your mind, find your clarity
           </Animated.Text>
         </View>
-      </TouchableOpacity>
-    </Link>
+
+        <Animated.View
+          style={{ opacity: fadeAnim }}
+          className="mt-12 space-y-4"
+        >
+          <View className="flex-row items-center space-x-3">
+            <Ionicons name="mic-outline" size={24} color="#FF9500" />
+            <Text className="text-[#1C1C1E] text-lg">
+              Voice-first journaling
+            </Text>
+          </View>
+          <View className="flex-row items-center space-x-3">
+            <Ionicons name="help-circle-outline" size={24} color="#FF9500" />
+            <Text className="text-[#1C1C1E] text-lg">
+              Guided self-reflection
+            </Text>
+          </View>
+          <View className="flex-row items-center space-x-3">
+            <Ionicons name="bulb-outline" size={24} color="#FF9500" />
+            <Text className="text-[#1C1C1E] text-lg">AI-powered insights</Text>
+          </View>
+        </Animated.View>
+
+        <View className="absolute bottom-12 w-full px-6">
+          {Platform.OS === "ios" ? (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={
+                AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+              }
+              buttonStyle={
+                AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+              }
+              cornerRadius={25}
+              style={{
+                width: "100%",
+                height: 56,
+              }}
+              onPress={handleAppleSignIn}
+            />
+          ) : (
+            <Text className="text-center text-gray-500">
+              Apple Sign In is only available on iOS devices
+            </Text>
+          )}
+        </View>
+      </View>
+    </View>
   );
 }

@@ -202,7 +202,6 @@ export default function AuthScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Apple Authentication */}
           <View className="w-full mt-5 items-center">
             <AppleAuthentication.AppleAuthenticationButton
               buttonType={
@@ -215,15 +214,49 @@ export default function AuthScreen() {
               style={{ width: "100%", height: 44 }}
               onPress={async () => {
                 try {
+                  setLoading(true);
                   const credential = await AppleAuthentication.signInAsync({
                     requestedScopes: [
                       AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
                       AppleAuthentication.AppleAuthenticationScope.EMAIL,
                     ],
                   });
-                  Alert.alert("Success", "You are now logged in with Apple!");
+
+                  const { data, error } = await supabase.auth.signInWithIdToken(
+                    {
+                      provider: "apple",
+                      token: credential.identityToken!,
+                    },
+                  );
+
+                  if (error) throw error;
+
+                  if (data.user) {
+                    // If this is first time sign in, save user data
+                    const { data: existingUser } = await supabase
+                      .from("users")
+                      .select()
+                      .eq("id", data.user.id)
+                      .single();
+
+                    if (!existingUser) {
+                      await supabase.from("users").insert([
+                        {
+                          id: data.user.id,
+                          email: credential.email,
+                          full_name: credential.fullName?.givenName
+                            ? `${credential.fullName.givenName} ${credential.fullName.familyName || ""}`
+                            : null,
+                        },
+                      ]);
+                    }
+
+                    router.replace("/(tabs)/home");
+                  }
                 } catch (e: any) {
                   Alert.alert("Error", e.message || "Something went wrong.");
+                } finally {
+                  setLoading(false);
                 }
               }}
             />
