@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "usesAppleSignIn": true,
-      "bundleIdentifier": "dev.ethanng.mitm."
+      "bundleIdentifier": "dev.ethanng.murmur."
     },
     "android": {
       "adaptiveIcon": {
