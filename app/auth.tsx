@@ -222,38 +222,57 @@ export default function AuthScreen() {
                     ],
                   });
 
-                  const { data, error } = await supabase.auth.signInWithIdToken(
-                    {
-                      provider: "apple",
-                      token: credential.identityToken!,
-                    },
-                  );
+                  console.log("Apple credential received:", credential);
+
+                  // Sign in with Supabase
+                  const { data, error } = await supabase.auth.signInWithIdToken({
+                    provider: "apple",
+                    token: credential.identityToken!,
+                  });
 
                   if (error) throw error;
 
                   if (data.user) {
-                    // If this is first time sign in, save user data
-                    const { data: existingUser } = await supabase
-                      .from("users")
-                      .select()
-                      .eq("id", data.user.id)
-                      .single();
+                    console.log("Supabase sign in successful:", data.user);
 
-                    if (!existingUser) {
-                      await supabase.from("users").insert([
-                        {
-                          id: data.user.id,
-                          email: credential.email,
-                          full_name: credential.fullName?.givenName
-                            ? `${credential.fullName.givenName} ${credential.fullName.familyName || ""}`
-                            : null,
-                        },
-                      ]);
+                    // First update the user metadata
+                    const { error: updateError } = await supabase.auth.updateUser({
+                      data: {
+                        givenName: credential.fullName?.givenName || null,
+                        familyName: credential.fullName?.familyName || null,
+                        email: credential.email,
+                        apple_user_id: credential.user
+                      }
+                    });
+
+                    if (updateError) {
+                      console.error("Error updating user metadata:", updateError);
                     }
+
+                    // Then update or insert into users table
+                    const { error: upsertError } = await supabase
+                      .from('users')
+                      .upsert({
+                        id: data.user.id,
+                        email: credential.email,
+                        given_name: credential.fullName?.givenName || null,
+                        family_name: credential.fullName?.familyName || null,
+                        apple_user_id: credential.user,
+                        last_sign_in: new Date().toISOString()
+                      });
+
+                    if (upsertError) {
+                      console.error("Error upserting user:", upsertError);
+                    }
+
+                    // Force refresh the session to get updated metadata
+                    const { data: refreshedSession } = await supabase.auth.refreshSession();
+                    console.log("Refreshed session:", refreshedSession);
 
                     router.replace("/(tabs)/home");
                   }
                 } catch (e: any) {
+                  console.error("Apple Sign In error:", e);
                   Alert.alert("Error", e.message || "Something went wrong.");
                 } finally {
                   setLoading(false);

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, Image, TouchableOpacity, ScrollView, Modal, TextInput, Alert, Switch, Linking } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthProvider";
@@ -20,6 +20,18 @@ export default function ProfileScreen() {
     moodTracking: true,
     newFeatures: false,
   });
+
+  useEffect(() => {
+    if (user) {
+      console.log("Profile Screen - User Data:", {
+        id: user.id,
+        email: user.email,
+        metadata: user.user_metadata,
+        givenName: user.user_metadata?.givenName,
+        familyName: user.user_metadata?.familyName
+      });
+    }
+  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -129,18 +141,13 @@ export default function ProfileScreen() {
     );
   };
 
-  // Get initials from full name
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
-  };
+  // Get user's name or fallback to email
+  const displayName = user?.user_metadata?.givenName || 
+    user?.email?.split("@")[0] || 
+    "User";
 
-  // Get user's full name or fallback to email
-  const displayName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
-  const initials = getInitials(displayName);
+  // Get initials from first name
+  const initials = user?.user_metadata?.givenName?.[0]?.toUpperCase() || "U";
 
   return (
     <ScrollView className="flex-1">
@@ -164,6 +171,7 @@ export default function ProfileScreen() {
             )}
             <Text className="text-2xl font-bold text-white mt-4">
               {displayName}
+              {user?.user_metadata?.familyName && ` ${user.user_metadata.familyName}`}
             </Text>
             <Text className="text-white/80">{user?.email}</Text>
           </View>
