@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "test",
+    "slug": "test",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "usesAppleSignIn": true,
+      "bundleIdentifier": "dev.ethanng.mitm."
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": ["expo-router", "expo-apple-authentication"],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "GOOGLE_MAPS_API_KEY": "AIzaSyD89RPyiECoIyNtVq0TdCIekAH4vWZlEVs",
+      "eas": {
+        "projectId": "ff0bc035-071c-463b-8c08-44a838fee878"
+      }
+    }
+  }
+}
