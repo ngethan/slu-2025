@@ -30,9 +30,7 @@ if (
 
 const db = drizzle(connection, {
   schema,
-  logger:
-    process.env.NEXT_PUBLIC_APP_ENV === "development" &&
-    process.env.LOG_SQL_QUERIES === "true",
+  logger: true,
 });
 
 export * from "./schema";

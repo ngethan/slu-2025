@@ -4,6 +4,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { Link, router } from "expo-router";
 import * as AppleAuthentication from "expo-apple-authentication";
+import { supabase } from "@/lib/supabase";
+import { AuthError } from "@supabase/supabase-js";
 
 export default function WelcomeScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -18,14 +20,35 @@ export default function WelcomeScreen() {
 
   const handleAppleSignIn = async () => {
     try {
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-      console.log("Apple sign-in successful:", credential);
-      router.replace("/(tabs)/home");
+      try {
+        const credential = await AppleAuthentication.signInAsync({
+          requestedScopes: [
+            AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+            AppleAuthentication.AppleAuthenticationScope.EMAIL,
+          ],
+        });
+        if (credential.identityToken) {
+          const {
+            error,
+            data: { user },
+          } = await supabase.auth.signInWithIdToken({
+            provider: "apple",
+            token: credential.identityToken,
+          });
+          console.log(JSON.stringify({ error, user }, null, 2));
+          if (!error) {
+            console.log("Apple sign-in successful:", credential);
+            router.replace("/(tabs)/home");
+          }
+        } else {
+          throw new Error("No identityToken.");
+        }
+      } catch (e) {
+        if ((e as AuthError).code === "ERR_REQUEST_CANCELED") {
+        } else {
+          console.error(e);
+        }
+      }
     } catch (e: any) {
       if (e.code === "ERR_REQUEST_CANCELED") {
         console.log("User canceled Apple sign-in");
@@ -61,7 +84,7 @@ export default function WelcomeScreen() {
             style={{ opacity: fadeAnim }}
             className="text-[#1C1C1E] text-5xl font-bold mt-4"
           >
-            murmur.ai
+            murmur
           </Animated.Text>
           <Animated.Text
             style={{ opacity: fadeAnim }}
@@ -110,7 +133,9 @@ export default function WelcomeScreen() {
                 }}
                 onPress={handleAppleSignIn}
               />
-              <Link href="/(tabs)/home">just bring me to home</Link>
+              <Link href="/(tabs)/conversation/271ab9e1-ab9c-4768-8a82-e52b868b5b67">
+                just bring me to home
+              </Link>
             </>
           ) : (
             <Text className="text-center text-gray-500">
