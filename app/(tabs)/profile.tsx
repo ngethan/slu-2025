@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, Image, TouchableOpacity, ScrollView, Modal, TextInput, Alert, Switch, Linking } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthProvider";
@@ -20,6 +20,56 @@ export default function ProfileScreen() {
     moodTracking: true,
     newFeatures: false,
   });
+
+  useEffect(() => {
+    const refreshSession = async () => {
+      try {
+        console.log("Profile Screen - Starting session refresh...");
+        
+        // First get the current user
+        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError) {
+          console.error("Error getting user:", userError);
+          return;
+        }
+
+        console.log("Current user data:", {
+          id: currentUser?.id,
+          email: currentUser?.email,
+          metadata: currentUser?.user_metadata
+        });
+
+        // Then try to refresh the session
+        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (refreshError) {
+          console.error("Error refreshing session:", refreshError);
+          // If refresh fails, use current user data
+          if (currentUser) {
+            console.log("Using current user data after refresh error");
+          }
+          return;
+        }
+        
+        if (session?.user) {
+          console.log("Profile Screen - Session refreshed successfully:", {
+            id: session.user.id,
+            email: session.user.email,
+            metadata: session.user.user_metadata,
+            givenName: session.user.user_metadata?.givenName,
+            familyName: session.user.user_metadata?.familyName
+          });
+        } else {
+          console.log("Profile Screen - No user in refreshed session");
+        }
+      } catch (error) {
+        console.error("Error in refreshSession:", error);
+      }
+    };
+
+    refreshSession();
+  }, []);
 
   const handleSignOut = async () => {
     await signOut();
@@ -129,18 +179,20 @@ export default function ProfileScreen() {
     );
   };
 
-  // Get initials from full name
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
-  };
+  // Get user's name or fallback to email
+  const displayName = user?.user_metadata?.givenName || 
+    user?.email?.split("@")[0] || 
+    "User";
 
-  // Get user's full name or fallback to email
-  const displayName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
-  const initials = getInitials(displayName);
+  // Get initials from first name and last name
+  const initials = user?.user_metadata?.givenName?.[0]?.toUpperCase() || "U";
+
+  console.log("Profile Screen - Rendering with:", {
+    displayName,
+    initials,
+    userMetadata: user?.user_metadata,
+    email: user?.email
+  });
 
   return (
     <ScrollView className="flex-1">
@@ -163,7 +215,8 @@ export default function ProfileScreen() {
               </View>
             )}
             <Text className="text-2xl font-bold text-white mt-4">
-              {displayName}
+              {user?.user_metadata?.givenName || "User"}
+              {user?.user_metadata?.familyName && ` ${user.user_metadata.familyName}`}
             </Text>
             <Text className="text-white/80">{user?.email}</Text>
           </View>

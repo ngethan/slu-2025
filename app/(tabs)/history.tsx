@@ -1,143 +1,148 @@
-import React, { useState, useMemo } from "react";
-import { View, Text, TouchableOpacity, FlatList, TextInput, ScrollView } from "react-native";
+import React, { useState, useMemo, useEffect } from "react";
+import { View, Text, TouchableOpacity, FlatList, TextInput, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { FontAwesome } from "@expo/vector-icons";
 import { Calendar, DateData } from "react-native-calendars";
-
-type Mood = "happy" | "sad" | "angry" | "anxious" | "neutral" | "excited" | "tired" | "grateful" | "stressed" | "peaceful";
+import { supabase } from "@/lib/supabase";
 
 interface Conversation {
   id: string;
-  date: string;
-  title: string;
-  preview: string;
-  mood: Mood;
+  chatName: string;
+  createdAt: string;
+  lastDate: string;
+  ownerId: string | null;
 }
 
 interface ConversationsByDate {
   [date: string]: Conversation[];
 }
 
-const PRESET_MOODS: { value: Mood; label: string; color: string }[] = [
-  { value: "happy", label: "Happy", color: "#FFD700" },
-  { value: "sad", label: "Sad", color: "#4A90E2" },
-  { value: "angry", label: "Angry", color: "#FF6B6B" },
-  { value: "anxious", label: "Anxious", color: "#9B59B6" },
-  { value: "neutral", label: "Neutral", color: "#95A5A6" },
-  { value: "excited", label: "Excited", color: "#FF8C00" },
-  { value: "tired", label: "Tired", color: "#34495E" },
-  { value: "grateful", label: "Grateful", color: "#2ECC71" },
-  { value: "stressed", label: "Stressed", color: "#E74C3C" },
-  { value: "peaceful", label: "Peaceful", color: "#1ABC9C" },
-];
-
-// Mock data for past conversations
-const mockConversations: Conversation[] = [
-  {
-    id: "1",
-    date: "2024-03-20",
-    title: "Morning Reflection",
-    preview: "Today I woke up feeling energized and ready to tackle the day...",
-    mood: "happy",
-  },
-  {
-    id: "2",
-    date: "2024-03-19",
-    title: "Evening Thoughts",
-    preview: "Had a challenging day at work, but learned a lot...",
-    mood: "stressed",
-  },
-  {
-    id: "3",
-    date: "2024-03-18",
-    title: "Gratitude Journal",
-    preview: "Feeling grateful for my family and friends...",
-    mood: "grateful",
-  },
-  {
-    id: "4",
-    date: "2024-03-17",
-    title: "Weekend Reflection",
-    preview: "Spent the weekend working on my project...",
-    mood: "excited",
-  },
-  {
-    id: "5",
-    date: "2024-03-16",
-    title: "Daily Check-in",
-    preview: "Feeling a bit anxious about the upcoming presentation...",
-    mood: "anxious",
-  },
-];
-
 // Group conversations by date
 const groupConversationsByDate = (conversations: Conversation[]): ConversationsByDate => {
   return conversations.reduce((acc, conversation) => {
-    const date = conversation.date;
-    if (!acc[date]) {
-      acc[date] = [];
+    try {
+      // Safely handle date parsing
+      const date = conversation.createdAt ? 
+        new Date(conversation.createdAt).toISOString().split('T')[0] :
+        new Date().toISOString().split('T')[0];
+      
+      if (!acc[date]) {
+        acc[date] = [];
+      }
+      acc[date].push(conversation);
+    } catch (error) {
+      console.error('Error parsing date:', error);
+      // Use today's date as fallback
+      const today = new Date().toISOString().split('T')[0];
+      if (!acc[today]) {
+        acc[today] = [];
+      }
+      acc[today].push(conversation);
     }
-    acc[date].push(conversation);
     return acc;
   }, {} as ConversationsByDate);
-};
-
-// Get mood color
-const getMoodColor = (mood: Mood): string => {
-  const moodData = PRESET_MOODS.find(m => m.value === mood);
-  return moodData?.color || "#95A5A6";
 };
 
 export default function HistoryScreen() {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMood, setSelectedMood] = useState<Mood | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Filter conversations based on search query and selected mood
+  // Fetch conversations from Supabase
+  useEffect(() => {
+    const fetchConversations = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        let query = supabase
+          .from('conversations')
+          .select('*')
+          .order('createdAt', { ascending: false });
+
+        // Add date filter if selected
+        if (selectedDate) {
+          const startOfDay = new Date(selectedDate);
+          const endOfDay = new Date(selectedDate);
+          endOfDay.setDate(endOfDay.getDate() + 1);
+          
+          query = query
+            .gte('createdAt', startOfDay.toISOString())
+            .lt('createdAt', endOfDay.toISOString());
+        }
+
+        const { data, error: supabaseError } = await query;
+
+        if (supabaseError) throw supabaseError;
+
+        setConversations(data || []);
+      } catch (err) {
+        console.error('Error fetching conversations:', err);
+        setError(err instanceof Error ? err.message : "Failed to fetch conversations");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchConversations();
+  }, [selectedDate]);
+
+  // Filter conversations based on search query
   const filteredConversations = useMemo(() => {
-    return mockConversations.filter(conversation => {
-      const matchesSearch = conversation.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          conversation.preview.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesMood = !selectedMood || conversation.mood === selectedMood;
-      return matchesSearch && matchesMood;
+    return conversations.filter(conversation => {
+      const matchesSearch = searchQuery === "" || 
+        (conversation.chatName?.toLowerCase() || "").includes(searchQuery.toLowerCase());
+      return matchesSearch;
     });
-  }, [searchQuery, selectedMood]);
+  }, [conversations, searchQuery]);
 
   const groupedConversations = useMemo(() => {
     return groupConversationsByDate(filteredConversations);
   }, [filteredConversations]);
 
   const onDayPress = (day: DateData) => {
-    setSelectedDate(day.dateString);
+    setSelectedDate(day.dateString === selectedDate ? "" : day.dateString);
   };
 
   const renderConversation = ({ item }: { item: Conversation }) => (
-    <TouchableOpacity
-      className="bg-white rounded-xl p-4 mb-3 shadow-sm"
-      onPress={() => router.push("/(tabs)/home")}
-    >
+    <View className="bg-white rounded-xl p-4 mb-3 shadow-sm">
       <View className="flex-row justify-between items-start mb-2">
-        <Text className="text-lg font-semibold text-gray-800">{item.title}</Text>
-        <View 
-          className="px-3 py-1 rounded-full"
-          style={{ backgroundColor: getMoodColor(item.mood) + '20' }}
-        >
-          <Text 
-            className="text-sm font-medium"
-            style={{ color: getMoodColor(item.mood) }}
-          >
-            {PRESET_MOODS.find(m => m.value === item.mood)?.label}
-          </Text>
-        </View>
+        <Text className="text-lg font-semibold text-gray-800">
+          {item.chatName || "Voice Chat"}
+        </Text>
+        <Text className="text-sm text-gray-500">
+          {item.createdAt ? 
+            new Date(item.createdAt).toLocaleTimeString([], { 
+              hour: '2-digit', 
+              minute: '2-digit',
+              hour12: true 
+            }) : 
+            "Time not available"
+          }
+        </Text>
       </View>
-      <Text className="text-gray-600">{item.preview}</Text>
-    </TouchableOpacity>
+    </View>
   );
 
   const renderDateSection = ({ date, conversations }: { date: string; conversations: Conversation[] }) => (
     <View className="mb-6">
-      <Text className="text-xl font-bold text-gray-800 mb-3">{date}</Text>
+      <Text className="text-xl font-bold text-gray-800 mb-3">
+        {(() => {
+          try {
+            return new Date(date).toLocaleDateString(undefined, { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            });
+          } catch (error) {
+            return "Date not available";
+          }
+        })()}
+      </Text>
       {conversations.map((conversation) => (
         <View key={conversation.id}>
           {renderConversation({ item: conversation })}
@@ -145,6 +150,20 @@ export default function HistoryScreen() {
       ))}
     </View>
   );
+
+  if (error) {
+    return (
+      <View className="flex-1 justify-center items-center px-4">
+        <Text className="text-red-500 text-center mb-4">{error}</Text>
+        <TouchableOpacity 
+          className="bg-orange-500 px-6 py-3 rounded-full"
+          onPress={() => setSelectedDate("")}
+        >
+          <Text className="text-white font-medium">Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-white">
@@ -162,44 +181,13 @@ export default function HistoryScreen() {
             onChangeText={setSearchQuery}
             placeholderTextColor="#666"
           />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <FontAwesome name="times-circle" size={20} color="#666" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
-
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        className="px-4 mb-4"
-      >
-        <View className="flex-row space-x-2">
-          <TouchableOpacity
-            className={`px-4 py-2 rounded-full ${
-              selectedMood === null ? 'bg-orange-500' : 'bg-gray-100'
-            }`}
-            onPress={() => setSelectedMood(null)}
-          >
-            <Text className={`font-medium ${
-              selectedMood === null ? 'text-white' : 'text-gray-600'
-            }`}>
-              All
-            </Text>
-          </TouchableOpacity>
-          {PRESET_MOODS.map((mood) => (
-            <TouchableOpacity
-              key={mood.value}
-              className={`px-4 py-2 rounded-full ${
-                selectedMood === mood.value ? 'bg-orange-500' : 'bg-gray-100'
-              }`}
-              onPress={() => setSelectedMood(mood.value)}
-            >
-              <Text className={`font-medium ${
-                selectedMood === mood.value ? 'text-white' : 'text-gray-600'
-              }`}>
-                {mood.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
 
       <Calendar
         onDayPress={onDayPress}
@@ -213,13 +201,26 @@ export default function HistoryScreen() {
         }}
       />
 
-      <FlatList
-        data={Object.entries(groupedConversations).sort((a, b) => b[0].localeCompare(a[0]))}
-        renderItem={({ item: [date, conversations] }) => renderDateSection({ date, conversations })}
-        keyExtractor={([date]) => date}
-        contentContainerClassName="px-4"
-        showsVerticalScrollIndicator={false}
-      />
+      {isLoading ? (
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color="#FFA500" />
+        </View>
+      ) : filteredConversations.length === 0 ? (
+        <View className="flex-1 justify-center items-center px-4">
+          <Text className="text-gray-500 text-center mb-2">No conversations found</Text>
+          <Text className="text-gray-400 text-center">
+            {searchQuery ? "Try different search terms" : "Start a conversation to see it here"}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={Object.entries(groupedConversations).sort((a, b) => b[0].localeCompare(a[0]))}
+          renderItem={({ item: [date, conversations] }) => renderDateSection({ date, conversations })}
+          keyExtractor={([date]) => date}
+          contentContainerClassName="px-4"
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </View>
   );
 } 
