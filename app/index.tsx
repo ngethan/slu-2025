@@ -36,7 +36,19 @@ export default function WelcomeScreen() {
             token: credential.identityToken,
           });
           console.log(JSON.stringify({ error, user }, null, 2));
-          if (!error) {
+          if (!error && user) {
+            const { error: upsertError } = await supabase.from("users").upsert({
+              id: user.id,
+              email: credential.email,
+              fullName:
+                credential.fullName?.givenName &&
+                credential.fullName?.familyName
+                  ? `${credential.fullName.givenName} ${credential.fullName.familyName}`
+                  : null,
+              apple_user_id: credential.user,
+            });
+            if (upsertError) throw new Error("Couldn't update user");
+
             console.log("Apple sign-in successful:", credential);
             router.replace("/(tabs)/home");
           }
