@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { View, Animated, Text, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { Link, router } from "expo-router";
+import { router } from "expo-router";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { supabase } from "@/lib/supabase";
 import { AuthError } from "@supabase/supabase-js";
@@ -146,9 +146,6 @@ export default function WelcomeScreen() {
                 }}
                 onPress={handleAppleSignIn}
               />
-              <Link href="/(tabs)/conversation/271ab9e1-ab9c-4768-8a82-e52b868b5b67">
-                just bring me to home
-              </Link>
             </>
           ) : (
             <Text className="text-center text-gray-500">

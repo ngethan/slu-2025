@@ -6,6 +6,7 @@ import {
   Animated,
   LayoutAnimation,
   Alert,
+  ScrollView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Audio } from "expo-av";
@@ -13,24 +14,36 @@ import { Mic } from "lucide-react-native";
 import OpenAI from "openai";
 import { supabase } from "@/lib/supabase";
 import { router } from "expo-router";
+import * as Speech from "expo-speech";
+import * as FileSystem from "expo-file-system";
 
 const openai = new OpenAI({
   apiKey:
     "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",
 });
 
+interface Message {
+  id: string;
+  content: string;
+  senderId: string;
+  conversationId: string;
+  createdAt: string;
+}
+
 export default function HomeScreen() {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [isRecording, setIsRecording] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
-  const [transcribedText, setTranscribedText] = useState("");
   const [recording, setRecording] = useState<Audio.Recording>();
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
 
   const micButtonAnim = useRef(new Animated.Value(0)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [showInitialText, setShowInitialText] = useState(true);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -42,6 +55,53 @@ export default function HomeScreen() {
     checkAuth();
     checkPermissions();
   }, []);
+
+  useEffect(() => {
+    if (!conversationId) return;
+
+    // Fetch existing messages
+    const fetchMessages = async () => {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("conversationId", conversationId)
+        .order("createdAt", { ascending: true });
+
+      if (error) {
+        console.error("Error fetching messages:", error);
+        return;
+      }
+
+      setMessages(data || []);
+    };
+
+    fetchMessages();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel("messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversationId=eq.${conversationId}`,
+        },
+        (payload) => {
+          setMessages((currentMessages) => [
+            ...currentMessages,
+            payload.new as Message,
+          ]);
+        },
+      )
+      .subscribe();
+
+    // Cleanup subscription
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [conversationId]);
 
   useEffect(() => {
     Animated.parallel([
@@ -109,9 +169,11 @@ export default function HomeScreen() {
     }
 
     try {
-      // Create new conversation when starting recording
-      const newConversationId = await createNewConversation();
-      if (!newConversationId) return;
+      // Only create new conversation if we don't have one
+      if (!conversationId) {
+        const newConversationId = await createNewConversation();
+        if (!newConversationId) return;
+      }
 
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
@@ -149,6 +211,7 @@ export default function HomeScreen() {
 
   const stopRecording = async () => {
     if (!recording) return;
+    if (showInitialText) setShowInitialText(false);
 
     try {
       await recording.stopAndUnloadAsync();
@@ -181,26 +244,208 @@ export default function HomeScreen() {
     }
   };
 
-  const saveMessage = async (content: string) => {
-    if (!conversationId) return;
+  const getAIResponse = async (userMessage: string) => {
+    if (!conversationId || !sessionId) return;
 
     try {
-      const { error } = await supabase.from("messages").insert({
-        conversationId: conversationId,
-        content: content,
-        senderId: sessionId,
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-2024-11-20",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an empathetic and professional mental health therapist. Keep your responses short and to the point. Your responses should be supportive, understanding, and help guide the user toward better mental well-being Focus on active listening, validation, and gentle guidance.",
+          },
+          {
+            role: "user",
+            content: userMessage,
+          },
+        ],
       });
+
+      const aiResponse = response.choices[0]?.message?.content;
+      if (aiResponse) {
+        console.log("AI Response:", aiResponse);
+
+        try {
+          const voiceResponse = await fetch(
+            "https://api.elevenlabs.io/v1/text-to-speech/XB0fDUnXU5powFXDhCwa?output_format=mp3_44100_128",
+            {
+              method: "POST",
+              headers: {
+                "xi-api-key":
+                  "sk_1c857d5a9461bdab241610635be1894c2e69b6b2635f3f6f",
+                voice_settings: "{ speed: 1.15 }",
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                text: aiResponse,
+                model_id: "eleven_multilingual_v2",
+              }),
+            },
+          );
+
+          if (!voiceResponse.ok) {
+            throw new Error("Failed to get voice response");
+          }
+
+          const tempFilePath = FileSystem.documentDirectory + "temp.mp3";
+          console.log("Temp file path:", tempFilePath);
+
+          const audioData = await voiceResponse.arrayBuffer();
+          console.log("Received audio data, size:", audioData.byteLength);
+
+          await FileSystem.writeAsStringAsync(
+            tempFilePath,
+            arrayBufferToBase64(audioData),
+            {
+              encoding: FileSystem.EncodingType.Base64,
+            },
+          );
+
+          console.log("Audio file written to disk");
+
+          // Configure audio session
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: true,
+            shouldDuckAndroid: true,
+          });
+
+          const soundObject = new Audio.Sound();
+          console.log("Loading audio file...");
+          await soundObject.loadAsync({ uri: tempFilePath });
+          console.log("Audio file loaded");
+
+          soundObject.setOnPlaybackStatusUpdate(async (status) => {
+            console.log("Playback status:", status);
+            if (status.didJustFinish) {
+              console.log("Playback finished, cleaning up...");
+              await soundObject.unloadAsync();
+              await FileSystem.deleteAsync(tempFilePath);
+            }
+          });
+
+          console.log("Starting playback...");
+          await soundObject.playAsync();
+        } catch (audioError) {
+          console.error("Error playing audio:", audioError);
+          // Fallback to basic speech
+          Speech.speak(aiResponse);
+        }
+
+        await supabase.from("messages").insert({
+          conversationId: conversationId,
+          content: aiResponse,
+          senderId: "13b8449a-c108-40d9-8050-e5c5f3659bcc",
+        });
+      }
+    } catch (error) {
+      console.error("Error getting AI response:", error);
+      Alert.alert("Error", "Failed to get AI response");
+    }
+  };
+
+  // Helper function to convert ArrayBuffer to Base64
+  function arrayBufferToBase64(buffer: ArrayBuffer) {
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  const saveMessage = async (content: string) => {
+    if (!conversationId || !sessionId) return;
+
+    try {
+      const { data: existingMessages } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("conversationId", conversationId)
+        .order("createdAt", { ascending: true });
+
+      const isThirdMessage = existingMessages && existingMessages.length === 2;
+
+      const { error } = await supabase
+        .from("messages")
+        .insert({
+          conversationId: conversationId,
+          content: content,
+          senderId: sessionId,
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
-      await supabase
-        .from("conversations")
-        .update({
-          lastMessage: content,
-          preview: content.substring(0, 100),
-          lastDate: new Date().toISOString(),
-        })
-        .eq("id", conversationId);
+      if (isThirdMessage) {
+        try {
+          // Combine all messages for context
+          const messageHistory =
+            existingMessages
+              .map(
+                (msg) =>
+                  `${msg.senderId === sessionId ? "User" : "Therapist"}: ${msg.content}`,
+              )
+              .join("\n") + `\nUser: ${content}`;
+
+          const titleResponse = await openai.chat.completions.create({
+            model: "gpt-4o-2024-11-20",
+            messages: [
+              {
+                role: "system",
+                content:
+                  "Based on this conversation, generate a brief title (3-5 words) that captures the main theme or concern. Return ONLY the title without quotes or punctuation.",
+              },
+              {
+                role: "user",
+                content: messageHistory,
+              },
+            ],
+          });
+
+          const generatedTitle =
+            titleResponse.choices[0]?.message?.content || "New Voice Chat";
+
+          // Update conversation title
+          await supabase
+            .from("conversations")
+            .update({
+              chatName: generatedTitle,
+              lastMessage: content,
+              preview: content.substring(0, 100),
+              lastDate: new Date().toISOString(),
+            })
+            .eq("id", conversationId);
+        } catch (titleError) {
+          console.error("Error generating title:", titleError);
+          // Continue with default updates even if title generation fails
+          await supabase
+            .from("conversations")
+            .update({
+              lastMessage: content,
+              preview: content.substring(0, 100),
+              lastDate: new Date().toISOString(),
+            })
+            .eq("id", conversationId);
+        }
+      } else {
+        // Regular update for subsequent messages
+        await supabase
+          .from("conversations")
+          .update({
+            lastMessage: content,
+            preview: content.substring(0, 100),
+            lastDate: new Date().toISOString(),
+          })
+          .eq("id", conversationId);
+      }
+
+      await getAIResponse(content);
     } catch (error) {
       console.error("Error saving message:", error);
       Alert.alert("Error", "Failed to save message");
@@ -209,7 +454,6 @@ export default function HomeScreen() {
 
   const transcribeAudio = async (uri: string) => {
     try {
-      setTranscribedText("Transcribing...");
       console.log("Transcribing audio from URI:", uri);
 
       const extension = uri.split(".").pop() || "";
@@ -260,15 +504,12 @@ export default function HomeScreen() {
 
       if (response.ok) {
         const transcribedContent = transcriptionData.text;
-        setTranscribedText(transcribedContent);
         await saveMessage(transcribedContent);
       } else {
-        setTranscribedText("Transcription failed");
         Alert.alert("Error", "Failed to transcribe audio");
       }
     } catch (error) {
       console.error("Transcription error:", error);
-      setTranscribedText("Transcription failed");
       Alert.alert("Error", "Failed to transcribe audio");
     }
   };
@@ -282,13 +523,40 @@ export default function HomeScreen() {
         end={{ x: 0, y: 1 }}
       >
         <View className="flex-1 items-center px-6">
-          {isRecording && (
-            <View className="w-full mt-24">
-              <Text className="text-black text-3xl font-semibold">
-                {transcribedText || "Listening..."}
-              </Text>
-            </View>
-          )}
+          <ScrollView
+            ref={scrollViewRef}
+            style={{ height: "50%", width: "100%" }}
+            className="w-full mt-20 flex-1"
+            onContentSizeChange={() => {
+              scrollViewRef.current?.scrollToEnd({ animated: true });
+            }}
+          >
+            {messages.map((message) => (
+              <View key={message.id} className="w-full mb-4">
+                {message.senderId ===
+                  "13b8449a-c108-40d9-8050-e5c5f3659bcc" && (
+                  <Text className="text-gray-500 text-sm mb-1">Therapist</Text>
+                )}
+                <Text className="text-black text-xl">{message.content}</Text>
+              </View>
+            ))}
+
+            {!isRecording && showInitialText && (
+              <View className="w-full">
+                <Text className="text-black text-3xl font-semibold">
+                  You can speak when you're ready
+                </Text>
+              </View>
+            )}
+
+            {isRecording && (
+              <View className="w-full">
+                <Text className="text-black text-3xl font-semibold">
+                  Listening...
+                </Text>
+              </View>
+            )}
+          </ScrollView>
 
           <View className="flex-1" />
 

@@ -122,22 +122,26 @@ export default function HistoryScreen() {
   };
 
   const renderConversation = ({ item }: { item: Conversation }) => (
-    <View className="bg-white rounded-xl p-4 mb-3 shadow-sm">
+    <TouchableOpacity
+      onPress={() => router.push(`/(tabs)/conversation/${item.id}`)}
+      className="bg-white rounded-xl p-4 mb-3 shadow-sm"
+    >
       <View className="flex-row justify-between items-start mb-2">
         <Text className="text-lg font-semibold text-gray-800">
           {item.chatName || "Voice Chat"}
         </Text>
         <Text className="text-sm text-gray-500">
           {item.createdAt
-            ? new Date(item.createdAt).toLocaleTimeString([], {
+            ? new Date(item.createdAt).toLocaleTimeString("en-US", {
                 hour: "2-digit",
                 minute: "2-digit",
                 hour12: true,
+                timeZone: "America/Chicago",
               })
             : "Time not available"}
         </Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   const renderDateSection = ({
@@ -157,7 +161,8 @@ export default function HistoryScreen() {
               month: "long",
               day: "numeric",
             });
-          } catch (error) {
+          } catch (err) {
+            console.error(err);
             return "Date not available";
           }
         })()}

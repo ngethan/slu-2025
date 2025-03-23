@@ -59,6 +59,13 @@ export default function TabsNavigator() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="conversation/[conversationId]"
+        options={{
+          headerShown: false,
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

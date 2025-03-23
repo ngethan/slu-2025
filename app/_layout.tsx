@@ -43,9 +43,7 @@ export default function RootLayout() {
           name="index"
           options={{ title: "Welcome", headerShown: false }}
         />
-        <Stack.Screen name="home" options={{ title: "Home" }} />
         <Stack.Screen name="(tabs)" options={{ title: "Tabs" }} />
-        <Stack.Screen name="settings" options={{ title: "Settings" }} />
       </Stack>
     </AuthProvider>
   );
