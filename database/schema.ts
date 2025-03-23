@@ -5,19 +5,21 @@ import {
   timestamp,
   uniqueIndex,
   index,
+  varchar,
 } from "drizzle-orm/pg-core";
-import { relations, sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 
 export const conversations = pgTable("conversations", {
   id: uuid("id").defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("createdAt", {
+    precision: 3,
+    mode: "date",
+  }).defaultNow(),
   lastDate: timestamp("lastDate", { precision: 3, mode: "date" }),
-  participantIds: uuid("participantIds")
-    .array()
-    .notNull()
-    .default(sql`'{}'`),
-  chatName: text("chatName").default("").notNull(),
-  ownerId: uuid("ownerId"),
+  chatName: text("chatName").default("New Chat").notNull(),
+  userId: uuid("ownerId"),
   lastMessage: text("lastMessage"),
+  preview: text("preview"),
 });
 
 export const conversationRelations = relations(conversations, ({ many }) => ({

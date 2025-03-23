@@ -48,80 +48,115 @@ export default function AuthScreen() {
 
   async function signInWithEmail() {
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) {
-      Alert.alert("Error", error.message);
-    } else {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
       if (data.user?.email_confirmed_at) {
-        router.replace("/(tabs)/home");
+        // Create or get existing conversation
+        const { data: conversationData, error: conversationError } =
+          await supabase
+            .from("conversations")
+            .insert([
+              {
+                userId: data.user.id,
+                chatName: "New Chat",
+                lastDate: new Date().toISOString(),
+              },
+            ])
+            .select()
+            .single();
+
+        if (conversationError) throw conversationError;
+
+        // Route to the conversation page
+        router.replace(`/(tabs)/${conversationData.id}`);
       } else {
         Alert.alert("Check Email", "Verify your email before signing in.");
       }
+    } catch (error: any) {
+      Alert.alert("Error", error.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   async function signUpWithEmail() {
     setLoading(true);
 
-    console.log("Signing up");
+    try {
+      // ✅ Step 1: Sign up user
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName },
+        },
+      });
 
-    // ✅ Step 1: Sign up user
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName },
-      },
-    });
+      if (error) throw error;
 
-    if (error) {
+      Alert.alert("Please check your inbox for email verification!");
+
+      // ✅ Step 2: Wait for user to confirm email
+      const checkEmailVerified = async () => {
+        let attempts = 0;
+        const interval = setInterval(async () => {
+          if (attempts >= 10) {
+            clearInterval(interval);
+            setLoading(false);
+            return;
+          }
+
+          const { data: userData, error: userError } =
+            await supabase.auth.getUser();
+          if (userError) {
+            clearInterval(interval);
+            setLoading(false);
+            return;
+          }
+
+          if (userData?.user?.email_confirmed_at) {
+            clearInterval(interval);
+
+            // ✅ Step 3: Insert user into DB after verification
+            await supabase
+              .from("users")
+              .insert([{ id: userData.user.id, email, full_name: fullName }]);
+
+            // ✅ Step 4: Create initial conversation
+            const { data: conversationData, error: conversationError } =
+              await supabase
+                .from("conversations")
+                .insert([
+                  {
+                    userId: userData.user.id,
+                    chatName: "New Chat",
+                    lastDate: new Date().toISOString(),
+                  },
+                ])
+                .select()
+                .single();
+
+            if (conversationError) throw conversationError;
+
+            setLoading(false);
+            // Route to the new conversation
+            router.replace(`/(tabs)/${conversationData.id}`);
+          }
+          attempts++;
+        }, 5000); // Reduced from 500000 to 5000 (5 seconds)
+      };
+
+      checkEmailVerified();
+    } catch (error: any) {
       Alert.alert("Error", error.message);
       setLoading(false);
-      return;
     }
-
-    Alert.alert("Please check your inbox for email verification!");
-
-    // ✅ Step 2: Wait for user to confirm email
-    const checkEmailVerified = async () => {
-      let attempts = 0;
-      const interval = setInterval(async () => {
-        if (attempts >= 10) {
-          clearInterval(interval);
-          setLoading(false);
-          return;
-        }
-
-        const { data: userData, error: userError } =
-          await supabase.auth.getUser();
-        if (userError) {
-          clearInterval(interval);
-          setLoading(false);
-          return;
-        }
-
-        if (userData?.user?.email_confirmed_at) {
-          clearInterval(interval);
-
-          // ✅ Step 3: Insert user into DB after verification
-          await supabase
-            .from("users")
-            .insert([{ id: userData.user.id, email, full_name: fullName }]);
-
-          setLoading(false);
-          router.replace("/(tabs)/home");
-        }
-        attempts++;
-      }, 500000);
-    };
-
-    checkEmailVerified();
-
-    // router.push("/(tabs)/home");
   }
 
   async function resetPassword() {
@@ -133,6 +168,68 @@ export default function AuthScreen() {
     else Alert.alert("Success", "Password reset email sent!");
     setLoading(false);
   }
+
+  const handleAppleSignIn = async () => {
+    try {
+      setLoading(true);
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: "apple",
+        token: credential.identityToken!,
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        // If this is first time sign in, save user data
+        const { data: existingUser } = await supabase
+          .from("users")
+          .select()
+          .eq("id", data.user.id)
+          .single();
+
+        if (!existingUser) {
+          await supabase.from("users").insert([
+            {
+              id: data.user.id,
+              email: credential.email,
+              full_name: credential.fullName?.givenName
+                ? `${credential.fullName.givenName} ${credential.fullName.familyName || ""}`
+                : null,
+            },
+          ]);
+        }
+
+        // Create or get existing conversation
+        const { data: conversationData, error: conversationError } =
+          await supabase
+            .from("conversations")
+            .insert([
+              {
+                userId: data.user.id,
+                chatName: "New Chat",
+                lastDate: new Date().toISOString(),
+              },
+            ])
+            .select()
+            .single();
+
+        if (conversationError) throw conversationError;
+
+        router.replace(`/(tabs)/${conversationData.id}`);
+      }
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   verifyInstallation();
 
@@ -212,53 +309,7 @@ export default function AuthScreen() {
               }
               cornerRadius={5}
               style={{ width: "100%", height: 44 }}
-              onPress={async () => {
-                try {
-                  setLoading(true);
-                  const credential = await AppleAuthentication.signInAsync({
-                    requestedScopes: [
-                      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-                      AppleAuthentication.AppleAuthenticationScope.EMAIL,
-                    ],
-                  });
-
-                  const { data, error } = await supabase.auth.signInWithIdToken(
-                    {
-                      provider: "apple",
-                      token: credential.identityToken!,
-                    },
-                  );
-
-                  if (error) throw error;
-
-                  if (data.user) {
-                    // If this is first time sign in, save user data
-                    const { data: existingUser } = await supabase
-                      .from("users")
-                      .select()
-                      .eq("id", data.user.id)
-                      .single();
-
-                    if (!existingUser) {
-                      await supabase.from("users").insert([
-                        {
-                          id: data.user.id,
-                          email: credential.email,
-                          full_name: credential.fullName?.givenName
-                            ? `${credential.fullName.givenName} ${credential.fullName.familyName || ""}`
-                            : null,
-                        },
-                      ]);
-                    }
-
-                    router.replace("/(tabs)/home");
-                  }
-                } catch (e: any) {
-                  Alert.alert("Error", e.message || "Something went wrong.");
-                } finally {
-                  setLoading(false);
-                }
-              }}
+              onPress={handleAppleSignIn}
             />
           </View>
 

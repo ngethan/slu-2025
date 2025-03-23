@@ -11,7 +11,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Audio } from "expo-av";
 import { Mic } from "lucide-react-native";
 import OpenAI from "openai";
-import { cn } from "@/lib";
 
 const openai = new OpenAI({
   apiKey:
@@ -105,6 +104,7 @@ export default function HomeScreen() {
       ]).start();
 
       setIsRecording(true);
+      console.log("Recording started");
     } catch (error) {
       console.error("Failed to start recording:", error);
       Alert.alert("Error", "Failed to start recording");
@@ -132,8 +132,12 @@ export default function HomeScreen() {
         }),
       ]).start();
 
+      console.log("Recording stopped. File URI:", uri);
+
       if (uri) {
         await transcribeAudio(uri);
+      } else {
+        Alert.alert("Error", "No recording URI found");
       }
     } catch (error) {
       console.error("Failed to stop recording:", error);
@@ -144,18 +148,60 @@ export default function HomeScreen() {
   const transcribeAudio = async (uri: string) => {
     try {
       setTranscribedText("Transcribing...");
+      console.log("Transcribing audio from URI:", uri);
 
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      const extension = uri.split(".").pop() || "";
+      let mimeType = "audio/m4a";
+      let fileName = "audio.m4a";
 
-      const audioFile = new File([blob], "audio.mp3", { type: "audio/mp3" });
+      if (extension === "mp3") {
+        mimeType = "audio/mp3";
+        fileName = "audio.mp3";
+      } else if (extension === "wav") {
+        mimeType = "audio/wav";
+        fileName = "audio.wav";
+      } else if (extension === "caf") {
+        mimeType = "audio/x-caf";
+        fileName = "audio.caf";
+      } else if (extension === "m4a") {
+        mimeType = "audio/m4a";
+        fileName = "audio.m4a";
+      }
 
-      const transcription = await openai.audio.transcriptions.create({
-        file: audioFile,
+      const formData = new FormData();
+      formData.append("file", {
+        uri,
+        type: mimeType,
+        name: fileName,
+      } as any);
+      formData.append("model", "whisper-1");
+
+      console.log("Sending transcription request with:", {
+        file: uri,
         model: "whisper-1",
       });
 
-      setTranscribedText(transcription.text);
+      const response = await fetch(
+        "https://api.openai.com/v1/audio/transcriptions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${openai.apiKey}`,
+            // Let fetch set Content-Type for FormData automatically
+          },
+          body: formData,
+        },
+      );
+
+      const transcriptionData = await response.json();
+      console.log("Transcription response:", transcriptionData);
+
+      if (response.ok) {
+        setTranscribedText(transcriptionData.text);
+      } else {
+        setTranscribedText("Transcription failed");
+        Alert.alert("Error", "Failed to transcribe audio");
+      }
     } catch (error) {
       console.error("Transcription error:", error);
       setTranscribedText("Transcription failed");
@@ -202,7 +248,9 @@ export default function HomeScreen() {
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={isRecording ? stopRecording : startRecording}
-                className={`items-center justify-center duration-150 w-[96px] h-[96px] rounded-full shadow-sm ${isRecording ? "bg-[#fff]" : "bg-[#F29F18]"}`}
+                className={`items-center justify-center duration-150 w-[96px] h-[96px] rounded-full shadow-sm ${
+                  isRecording ? "bg-[#fff]" : "bg-[#F29F18]"
+                }`}
               >
                 {isRecording ? (
                   <View className="w-8 h-8 bg-red-500 rounded-lg" />
