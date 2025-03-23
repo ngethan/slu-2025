@@ -215,6 +215,8 @@ export default function AuthScreen() {
               onPress={async () => {
                 try {
                   setLoading(true);
+                  console.log("Starting Apple Sign In process...");
+                  
                   const credential = await AppleAuthentication.signInAsync({
                     requestedScopes: [
                       AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
@@ -222,20 +224,34 @@ export default function AuthScreen() {
                     ],
                   });
 
-                  console.log("Apple credential received:", credential);
+                  console.log("Apple credential received:", {
+                    email: credential.email,
+                    fullName: credential.fullName,
+                    user: credential.user,
+                    identityToken: credential.identityToken ? "present" : "missing"
+                  });
 
                   // Sign in with Supabase
+                  console.log("Attempting Supabase sign in...");
                   const { data, error } = await supabase.auth.signInWithIdToken({
                     provider: "apple",
                     token: credential.identityToken!,
                   });
 
-                  if (error) throw error;
+                  if (error) {
+                    console.error("Supabase sign in error:", error);
+                    throw error;
+                  }
 
                   if (data.user) {
-                    console.log("Supabase sign in successful:", data.user);
+                    console.log("Supabase sign in successful. User data:", {
+                      id: data.user.id,
+                      email: data.user.email,
+                      metadata: data.user.user_metadata
+                    });
 
                     // First update the user metadata
+                    console.log("Updating user metadata...");
                     const { error: updateError } = await supabase.auth.updateUser({
                       data: {
                         givenName: credential.fullName?.givenName || null,
@@ -247,9 +263,12 @@ export default function AuthScreen() {
 
                     if (updateError) {
                       console.error("Error updating user metadata:", updateError);
+                    } else {
+                      console.log("User metadata updated successfully");
                     }
 
                     // Then update or insert into users table
+                    console.log("Upserting user data...");
                     const { error: upsertError } = await supabase
                       .from('users')
                       .upsert({
@@ -263,11 +282,30 @@ export default function AuthScreen() {
 
                     if (upsertError) {
                       console.error("Error upserting user:", upsertError);
+                    } else {
+                      console.log("User data upserted successfully");
                     }
 
                     // Force refresh the session to get updated metadata
-                    const { data: refreshedSession } = await supabase.auth.refreshSession();
-                    console.log("Refreshed session:", refreshedSession);
+                    console.log("Refreshing session...");
+                    const { data: refreshedSession, error: refreshError } = await supabase.auth.refreshSession();
+                    
+                    if (refreshError) {
+                      console.error("Error refreshing session:", refreshError);
+                    } else {
+                      console.log("Session refreshed successfully:", {
+                        user: refreshedSession?.user?.id,
+                        metadata: refreshedSession?.user?.user_metadata
+                      });
+                    }
+
+                    // Get the latest user data
+                    const { data: { user: latestUser } } = await supabase.auth.getUser();
+                    console.log("Latest user data:", {
+                      id: latestUser?.id,
+                      email: latestUser?.email,
+                      metadata: latestUser?.user_metadata
+                    });
 
                     router.replace("/(tabs)/home");
                   }
