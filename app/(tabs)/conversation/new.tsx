@@ -18,8 +18,7 @@ import * as Speech from "expo-speech";
 import * as FileSystem from "expo-file-system";
 
 const openai = new OpenAI({
-  apiKey:
-    "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",
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 interface Message {
@@ -273,8 +272,7 @@ export default function HomeScreen() {
             {
               method: "POST",
               headers: {
-                "xi-api-key":
-                  "sk_1c857d5a9461bdab241610635be1894c2e69b6b2635f3f6f",
+                "xi-api-key": process.env.ELEVENLABS_API_KEY!,
                 voice_settings: "{ speed: 1.15 }",
                 "Content-Type": "application/json",
               },
