@@ -16,7 +16,7 @@ export default function WelcomeScreen() {
       duration: 2000,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [fadeAnim]);
 
   const handleAppleSignIn = async () => {
     try {
@@ -37,20 +37,21 @@ export default function WelcomeScreen() {
           });
           console.log(JSON.stringify({ error, user }, null, 2));
           if (!error && user) {
-            const { error: upsertError } = await supabase.from("users").upsert({
-              id: user.id,
-              email: credential.email,
-              fullName:
-                credential.fullName?.givenName &&
-                credential.fullName?.familyName
-                  ? `${credential.fullName.givenName} ${credential.fullName.familyName}`
-                  : null,
-              apple_user_id: credential.user,
-            });
+            const { error: upsertError } = await supabase
+              .from("users")
+              .update({
+                fullName:
+                  credential.fullName?.givenName &&
+                  credential.fullName?.familyName
+                    ? `${credential.fullName.givenName} ${credential.fullName.familyName}`
+                    : null,
+              })
+              .eq("id", user.id);
+
             if (upsertError) throw new Error("Couldn't update user");
 
             console.log("Apple sign-in successful:", credential);
-            router.replace("/(tabs)/home");
+            router.replace("/(tabs)/conversation/new");
           }
         } else {
           throw new Error("No identityToken.");

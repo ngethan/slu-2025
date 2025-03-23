@@ -11,6 +11,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Audio } from "expo-av";
 import { Mic } from "lucide-react-native";
 import OpenAI from "openai";
+import { supabase } from "@/lib/supabase";
+import { router } from "expo-router";
 
 const openai = new OpenAI({
   apiKey:
@@ -18,10 +20,12 @@ const openai = new OpenAI({
 });
 
 export default function HomeScreen() {
+  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [isRecording, setIsRecording] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [transcribedText, setTranscribedText] = useState("");
   const [recording, setRecording] = useState<Audio.Recording>();
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
   const micButtonAnim = useRef(new Animated.Value(0)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
@@ -29,6 +33,13 @@ export default function HomeScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    const checkAuth = async () => {
+      const session = await supabase.auth.getUser();
+      if (!session.data.user?.id) router.push("/");
+      setSessionId(session.data.user?.id);
+    };
+
+    checkAuth();
     checkPermissions();
   }, []);
 
@@ -56,7 +67,7 @@ export default function HomeScreen() {
         ]),
       ),
     ]).start();
-  }, []);
+  }, [pulseAnim, rotationAnim]);
 
   const checkPermissions = async () => {
     try {
@@ -70,6 +81,27 @@ export default function HomeScreen() {
     }
   };
 
+  const createNewConversation = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("conversations")
+        .insert({
+          chatName: "New Voice Chat",
+          lastDate: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      setConversationId(data.id);
+      return data.id;
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+      Alert.alert("Error", "Failed to create conversation");
+      return null;
+    }
+  };
+
   const startRecording = async () => {
     if (!hasPermission) {
       await checkPermissions();
@@ -77,6 +109,10 @@ export default function HomeScreen() {
     }
 
     try {
+      // Create new conversation when starting recording
+      const newConversationId = await createNewConversation();
+      if (!newConversationId) return;
+
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
@@ -145,6 +181,32 @@ export default function HomeScreen() {
     }
   };
 
+  const saveMessage = async (content: string) => {
+    if (!conversationId) return;
+
+    try {
+      const { error } = await supabase.from("messages").insert({
+        conversationId: conversationId,
+        content: content,
+        senderId: sessionId,
+      });
+
+      if (error) throw error;
+
+      await supabase
+        .from("conversations")
+        .update({
+          lastMessage: content,
+          preview: content.substring(0, 100),
+          lastDate: new Date().toISOString(),
+        })
+        .eq("id", conversationId);
+    } catch (error) {
+      console.error("Error saving message:", error);
+      Alert.alert("Error", "Failed to save message");
+    }
+  };
+
   const transcribeAudio = async (uri: string) => {
     try {
       setTranscribedText("Transcribing...");
@@ -197,7 +259,9 @@ export default function HomeScreen() {
       console.log("Transcription response:", transcriptionData);
 
       if (response.ok) {
-        setTranscribedText(transcriptionData.text);
+        const transcribedContent = transcriptionData.text;
+        setTranscribedText(transcribedContent);
+        await saveMessage(transcribedContent);
       } else {
         setTranscribedText("Transcription failed");
         Alert.alert("Error", "Failed to transcribe audio");
@@ -218,15 +282,15 @@ export default function HomeScreen() {
         end={{ x: 0, y: 1 }}
       >
         <View className="flex-1 items-center px-6">
-          <View className="flex-1" />
-
           {isRecording && (
-            <View className="w-full mb-8">
-              <Text className="text-white text-lg">
+            <View className="w-full mt-24">
+              <Text className="text-black text-3xl font-semibold">
                 {transcribedText || "Listening..."}
               </Text>
             </View>
           )}
+
+          <View className="flex-1" />
 
           <View className="items-center mb-40">
             <Animated.View
